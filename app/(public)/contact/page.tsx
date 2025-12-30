@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Phone, Mail, MapPin, Clock, Send, CheckCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Phone, Mail, MapPin, Clock, Send, CheckCircle, MessageCircle } from 'lucide-react';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 interface ContactInfo {
     phone: string;
@@ -21,6 +22,11 @@ export default function ContactPage() {
     const [loading, setLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState('');
+    const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+    const recaptchaRef = useRef<ReCAPTCHA>(null);
+
+    // Google test keys (for development)
+    const RECAPTCHA_SITE_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
     useEffect(() => {
         // İletişim bilgilerini fetch et
@@ -39,11 +45,18 @@ export default function ContactPage() {
         setLoading(true);
         setError('');
 
+        // Validate reCAPTCHA
+        if (!recaptchaToken) {
+            setError('Lütfen robot olmadığınızı doğrulayın');
+            setLoading(false);
+            return;
+        }
+
         try {
             const res = await fetch('/api/contact/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify({ ...formData, recaptchaToken })
             });
 
             const data = await res.json();
@@ -51,6 +64,8 @@ export default function ContactPage() {
             if (data.success) {
                 setSubmitted(true);
                 setFormData({ name: '', phone: '', email: '', message: '' });
+                setRecaptchaToken(null);
+                recaptchaRef.current?.reset();
             } else {
                 setError(data.message || 'Bir hata oluştu');
             }
@@ -90,6 +105,19 @@ export default function ContactPage() {
                                 className="text-white font-bold text-lg mt-2 block hover:text-yellow-500"
                             >
                                 {contactInfo?.phone || '0555 555 55 55'}
+                            </a>
+                        </div>
+                        <div className="bg-gray-900 p-8 rounded-xl border border-gray-800">
+                            <MessageCircle className="text-yellow-500 mb-4" size={32} />
+                            <h3 className="text-xl font-bold text-white mb-2">WhatsApp</h3>
+                            <p className="text-gray-400">Hızlı iletişim için</p>
+                            <a
+                                href={`https://wa.me/${contactInfo?.phone?.replace(/\s/g, '').replace(/^0/, '90')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block mt-4 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
+                            >
+                                WhatsApp'ta Yaz
                             </a>
                         </div>
                         <div className="bg-gray-900 p-8 rounded-xl border border-gray-800">
@@ -198,6 +226,18 @@ export default function ContactPage() {
                                         placeholder="Projenizden bahsedin..."
                                     />
                                 </div>
+
+                                {/* reCAPTCHA */}
+                                <div className="flex justify-center">
+                                    <ReCAPTCHA
+                                        ref={recaptchaRef}
+                                        sitekey={RECAPTCHA_SITE_KEY}
+                                        onChange={(token) => setRecaptchaToken(token)}
+                                        onExpired={() => setRecaptchaToken(null)}
+                                        theme="dark"
+                                    />
+                                </div>
+
                                 <button
                                     type="submit"
                                     disabled={loading}

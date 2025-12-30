@@ -24,7 +24,32 @@ function formatPhoneNumber(phone: string): string {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, phone, email, message } = body;
+        const { name, phone, email, message, recaptchaToken } = body;
+
+        // Verify reCAPTCHA
+        if (!recaptchaToken) {
+            return NextResponse.json({
+                success: false,
+                message: 'reCAPTCHA doğrulaması gerekli'
+            }, { status: 400 });
+        }
+
+        // Google test secret key (for development)
+        const RECAPTCHA_SECRET_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe';
+
+        const verifyResponse = await fetch(
+            `https://www.google.com/recaptcha/api/siteverify?secret=${RECAPTCHA_SECRET_KEY}&response=${recaptchaToken}`,
+            { method: 'POST' }
+        );
+
+        const verifyData = await verifyResponse.json();
+
+        if (!verifyData.success) {
+            return NextResponse.json({
+                success: false,
+                message: 'reCAPTCHA doğrulaması başarısız'
+            }, { status: 400 });
+        }
 
         // Validasyon
         if (!name || !phone || !email || !message) {

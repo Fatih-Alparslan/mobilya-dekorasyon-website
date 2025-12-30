@@ -7,7 +7,7 @@ export default async function Logo() {
     if (!settings) {
         return (
             <Link href="/" className="text-2xl font-bold tracking-tighter">
-                MOBİLYA<span className="text-yellow-500">DEKORASYON</span>
+                212 Huzur <span className="text-yellow-500">Mobilya</span>
             </Link>
         );
     }
@@ -25,12 +25,15 @@ export default async function Logo() {
         );
     }
 
-    // Logo resmi yoksa text göster
+    // Logo resmi yoksa text göster - "212 Huzur Mobilya" formatında
+    const logoText = settings.logo_text || '212 Huzur Mobilya';
+    const parts = logoText.split('Mobilya');
+
     return (
         <Link href="/" className="text-2xl font-bold tracking-tighter">
-            {settings.logo_text.split('DEKORASYON')[0]}
+            {parts[0]}
             <span className="text-yellow-500">
-                {settings.logo_text.includes('DEKORASYON') ? 'DEKORASYON' : ''}
+                Mobilya{parts[1] || ''}
             </span>
         </Link>
     );

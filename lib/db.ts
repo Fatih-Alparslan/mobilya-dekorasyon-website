@@ -4,9 +4,11 @@ import bcrypt from 'bcrypt';
 export interface Project {
   id: string;
   title: string;
+  title_en?: string;
   category: string;
   category_id?: number;
   description: string;
+  description_en?: string;
   imageUrls: string[];
   date: string;
 }
@@ -123,10 +125,12 @@ export async function getProjects(): Promise<Project[]> {
   const [rows] = await pool.query(`
     SELECT 
       p.id, 
-      p.title, 
+      p.title,
+      p.title_en, 
       COALESCE(c.name, p.category, 'Kategorisiz') as category,
       p.category_id,
-      p.description, 
+      p.description,
+      p.description_en, 
       DATE_FORMAT(p.date, '%Y-%m-%d') as date,
       GROUP_CONCAT(
         CASE 
@@ -139,15 +143,17 @@ export async function getProjects(): Promise<Project[]> {
     FROM projects p
     LEFT JOIN categories c ON p.category_id = c.id
     LEFT JOIN project_images pi ON p.id = pi.project_id
-    GROUP BY p.id, p.title, c.name, p.category, p.category_id, p.description, p.date
+    GROUP BY p.id, p.title, p.title_en, c.name, p.category, p.category_id, p.description, p.description_en, p.date
     ORDER BY p.created_at DESC
-  `);
+  `) as any;
 
   return (rows as any[]).map((row) => ({
     id: row.id,
     title: row.title,
+    title_en: row.title_en,
     category: row.category,
     description: row.description,
+    description_en: row.description_en,
     date: row.date,
     imageUrls: row.images ? row.images.split('|||') : [],
   }));
@@ -158,10 +164,12 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
     `
     SELECT 
       p.id, 
-      p.title, 
+      p.title,
+      p.title_en, 
       COALESCE(c.name, p.category, 'Kategorisiz') as category,
       p.category_id,
-      p.description, 
+      p.description,
+      p.description_en, 
       DATE_FORMAT(p.date, '%Y-%m-%d') as date,
       GROUP_CONCAT(
         CASE 
@@ -175,7 +183,7 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
     LEFT JOIN categories c ON p.category_id = c.id
     LEFT JOIN project_images pi ON p.id = pi.project_id
     WHERE p.id = ?
-    GROUP BY p.id, p.title, c.name, p.category, p.category_id, p.description, p.date
+    GROUP BY p.id, p.title, p.title_en, c.name, p.category, p.category_id, p.description, p.description_en, p.date
   `,
     [id]
   );
@@ -186,9 +194,11 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
   return {
     id: project.id,
     title: project.title,
+    title_en: project.title_en,
     category: project.category,
     category_id: project.category_id,
     description: project.description,
+    description_en: project.description_en,
     date: project.date,
     imageUrls: project.images ? project.images.split('|||') : [],
   };
@@ -202,8 +212,8 @@ export async function addProject(project: Omit<Project, 'id'>): Promise<Project>
 
     // Projeyi ekle (ID otomatik oluşturulacak)
     const [result] = await connection.query(
-      'INSERT INTO projects (title, category_id, description, date) VALUES (?, ?, ?, ?)',
-      [project.title, project.category_id, project.description, project.date]
+      'INSERT INTO projects (title, title_en, category_id, description, description_en, date) VALUES (?, ?, ?, ?, ?, ?)',
+      [project.title, project.title_en || null, project.category_id, project.description, project.description_en || null, project.date]
     );
 
     const newId = (result as any).insertId;
@@ -279,6 +289,10 @@ export async function updateProject(
       updateFields.push('title = ?');
       updateValues.push(updates.title);
     }
+    if (updates.title_en !== undefined) {
+      updateFields.push('title_en = ?');
+      updateValues.push(updates.title_en);
+    }
     if (updates.category !== undefined) {
       updateFields.push('category = ?');
       updateValues.push(updates.category);
@@ -290,6 +304,10 @@ export async function updateProject(
     if (updates.description !== undefined) {
       updateFields.push('description = ?');
       updateValues.push(updates.description);
+    }
+    if (updates.description_en !== undefined) {
+      updateFields.push('description_en = ?');
+      updateValues.push(updates.description_en);
     }
     if (updates.date !== undefined) {
       updateFields.push('date = ?');

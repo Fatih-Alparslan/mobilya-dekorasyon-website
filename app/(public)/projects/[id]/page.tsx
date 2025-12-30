@@ -3,15 +3,31 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function ProjectDetailPage() {
     const params = useParams();
     const id = params.id as string;
+    const { language } = useLanguage();
 
     const [project, setProject] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+    // Format date as "gün ay yıl" (e.g., "15 Ocak 2024")
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        const months = language === 'tr'
+            ? ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
+            : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+        const day = date.getDate();
+        const month = months[date.getMonth()];
+        const year = date.getFullYear();
+
+        return `${day} ${month} ${year}`;
+    };
 
     useEffect(() => {
         if (!id) return;
@@ -92,7 +108,7 @@ export default function ProjectDetailPage() {
                         <span className="bg-yellow-500 text-black px-4 py-1 rounded-full text-sm font-medium">
                             {project.category}
                         </span>
-                        <span className="text-gray-400">{project.date}</span>
+                        <span className="text-gray-400">{formatDate(project.date)}</span>
                     </div>
                     <h1 className="text-4xl md:text-5xl font-bold mb-4">{project.title}</h1>
                     <p className="text-gray-400 text-lg">{project.description}</p>

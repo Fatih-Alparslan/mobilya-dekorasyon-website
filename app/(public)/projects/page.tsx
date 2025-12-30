@@ -12,6 +12,8 @@ export default function ProjectsPage() {
     const [categories, setCategories] = useState<any[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 9;
 
     useEffect(() => {
         // Fetch categories
@@ -56,6 +58,17 @@ export default function ProjectsPage() {
             const projectCategory = categories.find(c => c.name === p.category);
             return projectCategory?.slug === selectedCategory;
         });
+
+    // Pagination calculations
+    const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentProjects = filteredProjects.slice(startIndex, endIndex);
+
+    // Reset to page 1 when category changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedCategory]);
 
     // Sort categories by project count (most to least)
     const sortedCategories = [...categories].sort((a, b) => {
@@ -106,12 +119,53 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Projects Grid */}
-                {filteredProjects.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {filteredProjects.map((project) => (
-                            <ProjectCard key={project.id} project={project} />
-                        ))}
-                    </div>
+                {currentProjects.length > 0 ? (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
+                            {currentProjects.map((project) => (
+                                <ProjectCard key={project.id} project={project} />
+                            ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-2 mt-12">
+                                {/* Previous Button */}
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:hover:bg-gray-800"
+                                >
+                                    ← Önceki
+                                </button>
+
+                                {/* Page Numbers */}
+                                <div className="flex gap-2">
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                            className={`w-10 h-10 rounded-lg font-medium transition-colors ${currentPage === pageNum
+                                                    ? 'bg-yellow-500 text-black'
+                                                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                                }`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Next Button */}
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:hover:bg-gray-800"
+                                >
+                                    Sonraki →
+                                </button>
+                            </div>
+                        )}
+                    </>
                 ) : (
                     <div className="text-center text-gray-400 py-20">
                         Bu kategoride henüz proje yok.

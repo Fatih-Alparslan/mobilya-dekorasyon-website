@@ -27,7 +27,7 @@ export default function LogoClient() {
     if (loading || !logoData) {
         return (
             <Link href="/" className="text-2xl font-bold tracking-tighter">
-                MOBİLYA<span className="text-yellow-500">DEKORASYON</span>
+                212 Huzur <span className="text-yellow-500">Mobilya</span>
             </Link>
         );
     }
@@ -45,13 +45,15 @@ export default function LogoClient() {
         );
     }
 
-    // Logo resmi yoksa text göster
-    const parts = logoData.logoText.split('DEKORASYON');
+    // Logo resmi yoksa text göster - "212 Huzur Mobilya" formatında
+    const logoText = logoData.logoText || '212 Huzur Mobilya';
+    const parts = logoText.split('Mobilya');
+
     return (
         <Link href="/" className="text-2xl font-bold tracking-tighter">
             {parts[0]}
             <span className="text-yellow-500">
-                {logoData.logoText.includes('DEKORASYON') ? 'DEKORASYON' : ''}
+                Mobilya{parts[1] || ''}
             </span>
         </Link>
     );
