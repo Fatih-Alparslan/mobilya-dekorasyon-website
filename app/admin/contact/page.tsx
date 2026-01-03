@@ -9,6 +9,7 @@ interface ContactInfo {
     email: string;
     address: string;
     working_hours: string;
+    map_embed_url?: string;
 }
 
 interface ContactSubmission {
@@ -26,7 +27,8 @@ export default function AdminContactPage() {
         phone: '',
         email: '',
         address: '',
-        working_hours: ''
+        working_hours: '',
+        map_embed_url: ''
     });
     const [submissions, setSubmissions] = useState<ContactSubmission[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -124,8 +126,8 @@ export default function AdminContactPage() {
             {message && (
                 <div
                     className={`mb-6 p-4 rounded-lg ${message.type === 'success'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                         }`}
                 >
                     {message.text}
@@ -229,6 +231,22 @@ export default function AdminContactPage() {
                             placeholder="Pazartesi - Cumartesi: 09:00 - 19:00"
                         />
                     </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Google Maps Embed Linki
+                        </label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                            Google Haritalar'da yerinizi bulup "Paylaş" {'>'} "Harita yerleştir" kısmındaki iframe kodunun içindeki <strong>src="..."</strong> linkini buraya yapıştırın.
+                        </p>
+                        <textarea
+                            rows={3}
+                            value={contactInfo.map_embed_url || ''}
+                            onChange={(e) => setContactInfo({ ...contactInfo, map_embed_url: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 text-sm font-mono"
+                            disabled={loading}
+                            placeholder="https://www.google.com/maps/embed?pb=!1m18!1m12!..."
+                        />
+                    </div>
                     <button
                         type="submit"
                         disabled={loading}
@@ -261,8 +279,8 @@ export default function AdminContactPage() {
                             <div
                                 key={submission.id}
                                 className={`p-4 rounded-lg border ${submission.is_read
-                                        ? 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700'
-                                        : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700'
+                                    ? 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700'
+                                    : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700'
                                     }`}
                             >
                                 <div className="flex justify-between items-start mb-2">
@@ -282,8 +300,8 @@ export default function AdminContactPage() {
                                             type="button"
                                             onClick={() => handleToggleRead(submission.id, submission.is_read)}
                                             className={`${submission.is_read
-                                                    ? 'text-gray-500 hover:text-gray-700'
-                                                    : 'text-blue-500 hover:text-blue-700'
+                                                ? 'text-gray-500 hover:text-gray-700'
+                                                : 'text-blue-500 hover:text-blue-700'
                                                 }`}
                                             title={submission.is_read ? 'Okunmadı olarak işaretle' : 'Okundu olarak işaretle'}
                                         >

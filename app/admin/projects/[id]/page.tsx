@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { X } from 'lucide-react';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import { tr } from 'date-fns/locale';
+import { format } from 'date-fns';
+
+registerLocale('tr', tr);
 
 export default function EditProjectPage() {
     const router = useRouter();
@@ -13,6 +19,10 @@ export default function EditProjectPage() {
     const [categories, setCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [imagesToKeep, setImagesToKeep] = useState<string[]>([]);
+    const [featuredImageUrl, setFeaturedImageUrl] = useState<string>('');
+    const [newFiles, setNewFiles] = useState<File[]>([]);
+    const [newPreviews, setNewPreviews] = useState<string[]>([]);
+    const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
 
     useEffect(() => {
         if (!id) return;
@@ -24,6 +34,13 @@ export default function EditProjectPage() {
                 if (data.success) {
                     setProject(data.data);
                     setImagesToKeep(data.data.imageUrls || []);
+                    if (data.data.date) {
+                        setSelectedDate(new Date(data.data.date));
+                    }
+                    // First image is featured by default (due to ORDER BY in query)
+                    if (data.data.imageUrls && data.data.imageUrls.length > 0) {
+                        setFeaturedImageUrl(data.data.imageUrls[0]);
+                    }
                 }
                 setLoading(false);
             })
@@ -45,14 +62,75 @@ export default function EditProjectPage() {
 
     const handleRemoveImage = (imageUrl: string) => {
         setImagesToKeep(prev => prev.filter(url => url !== imageUrl));
+        // If removing featured image, set first remaining as featured
+        if (imageUrl === featuredImageUrl) {
+            const remaining = imagesToKeep.filter(url => url !== imageUrl);
+            setFeaturedImageUrl(remaining.length > 0 ? remaining[0] : '');
+        }
+    };
+
+    const handleNewFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        setNewFiles(prev => [...prev, ...files]);
+
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setNewPreviews(prev => [...prev, reader.result as string]);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Clear input value to allow re-selection of same file
+        e.target.value = '';
+    };
+
+    const handleRemoveNewFile = (index: number) => {
+        setNewFiles(prev => prev.filter((_, i) => i !== index));
+        setNewPreviews(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleSetFeatured = async (imageUrl: string) => {
+        // Confirmation processed via Modal, proceeding directly
+        try {
+            const response = await fetch(`/api/projects/${params.id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ imageUrl }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setFeaturedImageUrl(imageUrl);
+            } else {
+                alert(data.message || 'Ana fotoğraf güncellenemedi');
+            }
+        } catch (error) {
+            console.error('Set featured error:', error);
+            alert('Ana fotoğraf güncellenirken bir hata oluştu');
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
 
+        // Append new files manually since we are managing them in state
+        formData.delete('newImages'); // Clear default input capture
+        newFiles.forEach(file => {
+            formData.append('newImages', file);
+        });
+
         // Add images to keep as JSON
         formData.append('imagesToKeep', JSON.stringify(imagesToKeep));
+
+        // Add featured image URL to persist the selection
+        if (featuredImageUrl) {
+            formData.append('featuredImageUrl', featuredImageUrl);
+        }
 
         try {
             const res = await fetch(`/api/projects/${id}`, {
@@ -105,12 +183,22 @@ export default function EditProjectPage() {
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tarih</label>
-                    <input
-                        name="date"
-                        type="date"
-                        defaultValue={project.date}
-                        className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 text-gray-900 dark:text-white shadow-sm focus:border-yellow-500 focus:outline-none focus:ring-1 focus:ring-yellow-500"
-                    />
+                    <div className="mt-1">
+                        <DatePicker
+                            selected={selectedDate}
+                            onChange={(date: Date | null) => setSelectedDate(date)}
+                            locale="tr"
+                            dateFormat="dd.MM.yyyy"
+                            wrapperClassName="w-full"
+                            className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 text-gray-900 dark:text-white shadow-sm focus:border-yellow-500 focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                            placeholderText="Tarih seçin"
+                        />
+                        <input
+                            type="hidden"
+                            name="date"
+                            value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+                        />
+                    </div>
                 </div>
 
                 <div>
@@ -133,8 +221,26 @@ export default function EditProjectPage() {
                                 <img
                                     src={url}
                                     alt="Project"
-                                    className="w-full h-32 object-cover rounded border border-gray-300 dark:border-gray-600"
+                                    className={`w-full h-32 object-cover rounded border ${url === featuredImageUrl
+                                        ? 'border-yellow-500 border-2'
+                                        : 'border-gray-300 dark:border-gray-600'
+                                        }`}
                                 />
+                                {url === featuredImageUrl && (
+                                    <div className="absolute top-2 left-2 bg-yellow-500 text-black px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                        ⭐ Ana Fotoğraf
+                                    </div>
+                                )}
+                                {url !== featuredImageUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSetFeatured(url)}
+                                        className="absolute top-2 left-2 bg-gray-800/80 text-white px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity hover:bg-yellow-500 hover:text-black"
+                                        title="Ana Fotoğraf Yap"
+                                    >
+                                        ⭐ Ana Yap
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     onClick={() => handleRemoveImage(url)}
@@ -152,14 +258,39 @@ export default function EditProjectPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Yeni Fotoğraf Ekle</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Yeni Fotoğraf Ekle {newFiles.length > 0 && `(${newFiles.length} seçildi)`}
+                    </label>
                     <input
                         type="file"
                         name="newImages"
                         multiple
                         accept="image/*"
+                        onChange={handleNewFileChange}
                         className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-yellow-500 file:text-black hover:file:bg-yellow-400"
                     />
+
+                    {newPreviews.length > 0 && (
+                        <div className="mt-4 grid grid-cols-3 gap-3">
+                            {newPreviews.map((url, idx) => (
+                                <div key={idx} className="relative group">
+                                    <img
+                                        src={url}
+                                        alt={`New Preview ${idx + 1}`}
+                                        className="w-full h-32 object-cover rounded border border-gray-300 dark:border-gray-600"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveNewFile(idx)}
+                                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                        title="Kaldır"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex justify-end pt-4">

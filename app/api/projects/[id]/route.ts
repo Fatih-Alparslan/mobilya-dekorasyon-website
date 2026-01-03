@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getProjectById, updateProject } from '@/lib/db';
+import { getProjectById, updateProject, setFeaturedImage } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { saveFile } from '@/lib/upload';
 
@@ -27,6 +27,55 @@ export async function GET(
         return NextResponse.json({
             success: false,
             message: 'Proje yüklenemedi'
+        }, { status: 500 });
+    }
+}
+
+export async function PATCH(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        // Admin session kontrolü
+        const cookieStore = await cookies();
+        const session = cookieStore.get('admin_session');
+
+        if (!session || session.value !== 'authenticated') {
+            return NextResponse.json({
+                success: false,
+                message: 'Yetkisiz erişim'
+            }, { status: 401 });
+        }
+
+        const { id } = await params;
+        const body = await request.json();
+        const { imageUrl } = body;
+
+        if (!imageUrl) {
+            return NextResponse.json({
+                success: false,
+                message: 'Resim URL\'si gerekli'
+            }, { status: 400 });
+        }
+
+        const success = await setFeaturedImage(id, imageUrl);
+
+        if (!success) {
+            return NextResponse.json({
+                success: false,
+                message: 'Resim bulunamadı'
+            }, { status: 404 });
+        }
+
+        return NextResponse.json({
+            success: true,
+            message: 'Ana fotoğraf başarıyla güncellendi'
+        });
+    } catch (error) {
+        console.error('Set featured image error:', error);
+        return NextResponse.json({
+            success: false,
+            message: 'Ana fotoğraf güncellenemedi'
         }, { status: 500 });
     }
 }
@@ -90,6 +139,12 @@ export async function PUT(
             date,
             imageUrls: allImages,
         });
+
+        // If featuredImageUrl is provided, update it
+        const featuredImageUrl = formData.get('featuredImageUrl') as string;
+        if (featuredImageUrl) {
+            await setFeaturedImage(id, featuredImageUrl);
+        }
 
         return NextResponse.json({
             success: true,

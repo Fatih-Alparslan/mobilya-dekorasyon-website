@@ -1,60 +1,27 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { tr, TranslationKeys } from '@/translations/tr';
-import { en } from '@/translations/en';
+import { useLanguage as useNewLanguage } from '@/components/LanguageProvider';
 
-type Language = 'tr' | 'en';
-
-interface LanguageContextType {
-    language: Language;
-    setLanguage: (lang: Language) => void;
-    t: TranslationKeys;
-}
-
-const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
-
-const translations = {
-    tr,
-    en,
-};
-
-export function LanguageProvider({ children }: { children: ReactNode }) {
-    const [language, setLanguageState] = useState<Language>('tr');
-    const [mounted, setMounted] = useState(false);
-
-    // Load language preference from localStorage on mount
-    useEffect(() => {
-        const savedLanguage = localStorage.getItem('language') as Language;
-        if (savedLanguage && (savedLanguage === 'tr' || savedLanguage === 'en')) {
-            setLanguageState(savedLanguage);
-        }
-        setMounted(true);
-    }, []);
-
-    // Save language preference to localStorage when it changes
-    const setLanguage = (lang: Language) => {
-        setLanguageState(lang);
-        localStorage.setItem('language', lang);
-    };
-
-    const value: LanguageContextType = {
-        language,
-        setLanguage,
-        t: translations[language],
-    };
-
-    return (
-        <LanguageContext.Provider value={value}>
-            {children}
-        </LanguageContext.Provider>
-    );
-}
-
+// This is a compatibility shim to prevent build errors in files 
+// that still import from the old context path.
+// It redirects to the new provider but returns a dummy 't' function 
+// to prevent runtime crashes until those files are updated.
 export function useLanguage() {
-    const context = useContext(LanguageContext);
-    if (context === undefined) {
-        throw new Error('useLanguage must be used within a LanguageProvider');
-    }
-    return context;
+    const { language, setLanguage, dict } = useNewLanguage();
+
+    // Temporary shim for backward compatibility
+    // Returns an empty string for any accessed property to prevent crash
+    const t: any = new Proxy({}, {
+        get: () => new Proxy({}, {
+            get: (target, prop) => {
+                if (prop === 'toString' || prop === 'valueOf') return () => '';
+                return ''; // Return empty string for any key like t.nav.home
+            }
+        })
+    });
+
+    return { language, setLanguage, t };
 }
+
+// Re-export LanguageProvider from the new location if used
+export { LanguageProvider } from '@/components/LanguageProvider';

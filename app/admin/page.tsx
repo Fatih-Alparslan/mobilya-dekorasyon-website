@@ -29,6 +29,15 @@ export default function AdminDashboard() {
         }
     };
 
+    const formatDate = (dateString: string) => {
+        try {
+            const d = new Date(dateString);
+            return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
+        } catch (e) {
+            return dateString;
+        }
+    };
+
     return (
         <div>
             <div className="flex justify-between items-center mb-8">
@@ -120,7 +129,7 @@ export default function AdminDashboard() {
                                     {project.category}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    {project.date}
+                                    {formatDate(project.date)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div className="flex justify-end gap-3">

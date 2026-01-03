@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { phone, email, address, working_hours, map_lat, map_lng } = body;
+        const { phone, email, address, working_hours, map_lat, map_lng, map_embed_url } = body;
 
         await updateContactInfo({
             phone,
@@ -50,7 +50,8 @@ export async function POST(request: Request) {
             address,
             working_hours,
             map_lat,
-            map_lng
+            map_lng,
+            map_embed_url
         });
 
         return NextResponse.json({

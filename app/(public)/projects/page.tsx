@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ProjectCard from '@/components/ProjectCard';
+import { useLanguage } from '@/components/LanguageProvider';
 
 export default function ProjectsPage() {
     const searchParams = useSearchParams();
     const categorySlug = searchParams.get('category');
+    const { language, dict } = useLanguage();
 
     const [projects, setProjects] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
@@ -80,7 +82,7 @@ export default function ProjectsPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                <div className="text-xl">Yükleniyor...</div>
+                <div className="text-xl">{dict.common.loading}</div>
             </div>
         );
     }
@@ -88,9 +90,9 @@ export default function ProjectsPage() {
     return (
         <div className="min-h-screen bg-black text-white py-20">
             <div className="container mx-auto px-4">
-                <h1 className="text-5xl font-bold text-center mb-4">Projelerimiz</h1>
+                <h1 className="text-5xl font-bold text-center mb-4">{dict.header.projects}</h1>
                 <p className="text-center text-gray-400 mb-12">
-                    Tasarladığımız ve hayata geçirdiğimiz seçkin projelerden örnekler.
+                    {language === 'tr' ? 'Tasarladığımız ve hayata geçirdiğimiz seçkin projelerden örnekler.' : 'Examples of exclusive projects we designed and brought to life.'}
                 </p>
 
                 {/* Category Filter Buttons */}
@@ -102,7 +104,7 @@ export default function ProjectsPage() {
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                             }`}
                     >
-                        Tümü
+                        {dict.projects.all}
                     </button>
                     {sortedCategories.map((category) => (
                         <button
@@ -113,7 +115,7 @@ export default function ProjectsPage() {
                                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                                 }`}
                         >
-                            {category.name}
+                            {language === 'en' ? (category.name_en || category.name) : category.name}
                         </button>
                     ))}
                 </div>
@@ -136,7 +138,7 @@ export default function ProjectsPage() {
                                     disabled={currentPage === 1}
                                     className="px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:hover:bg-gray-800"
                                 >
-                                    ← Önceki
+                                    ← {dict.common.prev}
                                 </button>
 
                                 {/* Page Numbers */}
@@ -146,8 +148,8 @@ export default function ProjectsPage() {
                                             key={pageNum}
                                             onClick={() => setCurrentPage(pageNum)}
                                             className={`w-10 h-10 rounded-lg font-medium transition-colors ${currentPage === pageNum
-                                                    ? 'bg-yellow-500 text-black'
-                                                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                                ? 'bg-yellow-500 text-black'
+                                                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                                                 }`}
                                         >
                                             {pageNum}
@@ -161,14 +163,14 @@ export default function ProjectsPage() {
                                     disabled={currentPage === totalPages}
                                     className="px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:hover:bg-gray-800"
                                 >
-                                    Sonraki →
+                                    {dict.common.next} →
                                 </button>
                             </div>
                         )}
                     </>
                 ) : (
                     <div className="text-center text-gray-400 py-20">
-                        Bu kategoride henüz proje yok.
+                        {dict.projects.no_projects}
                     </div>
                 )}
             </div>

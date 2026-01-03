@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useLanguage } from '@/components/LanguageProvider';
 
 interface ProjectCardProps {
     project: {
@@ -18,30 +17,23 @@ interface ProjectCardProps {
 }
 
 export default function ProjectCard({ project }: ProjectCardProps) {
-    const { language, t } = useLanguage();
+    const { language, dict } = useLanguage();
 
-    // Get the appropriate title and description based on current language
     const displayTitle = language === 'en' && project.title_en ? project.title_en : project.title;
     const displayDescription = language === 'en' && project.description_en ? project.description_en : project.description;
 
-    // Format date as "gün ay yıl" (e.g., "15 Ocak 2024")
     const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        const months = language === 'tr'
-            ? ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
-            : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-        const day = date.getDate();
-        const month = months[date.getMonth()];
-        const year = date.getFullYear();
-
-        return `${day} ${month} ${year}`;
+        try {
+            const d = new Date(dateString);
+            return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
+        } catch (e) {
+            return dateString;
+        }
     };
 
     return (
         <Link href={`/projects/${project.id}`} className="block h-full">
             <div className="group relative overflow-hidden rounded-lg bg-gray-900 hover:bg-gray-800 transition-all duration-300 cursor-pointer flex flex-col h-full">
-                {/* Project Image */}
                 <div className="relative w-full aspect-[4/3] overflow-hidden bg-gray-800 flex-shrink-0">
                     {project.imageUrls?.[0] ? (
                         <img
@@ -52,11 +44,10 @@ export default function ProjectCard({ project }: ProjectCardProps) {
                         />
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-gray-500">{t.common.noImage}</span>
+                            <span className="text-gray-500">{language === 'tr' ? 'Resim Yok' : 'No Image'}</span>
                         </div>
                     )}
 
-                    {/* Category Badge */}
                     <div className="absolute top-4 left-4 z-10">
                         <span className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-medium">
                             {project.category}
@@ -64,7 +55,6 @@ export default function ProjectCard({ project }: ProjectCardProps) {
                     </div>
                 </div>
 
-                {/* Project Info */}
                 <div className="p-6 flex flex-col flex-grow">
                     <h3 className="text-xl font-bold text-white mb-2 group-hover:text-yellow-500 transition-colors">
                         {displayTitle}
@@ -75,7 +65,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
                     <div className="flex items-center justify-between mt-auto">
                         <span className="text-gray-500 text-sm">{formatDate(project.date)}</span>
                         <span className="text-yellow-500 group-hover:text-yellow-400 text-sm font-medium">
-                            {t.projects.viewDetails} →
+                            {dict.home.view_project} →
                         </span>
                     </div>
                 </div>

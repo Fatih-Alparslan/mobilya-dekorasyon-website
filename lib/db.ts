@@ -7,6 +7,7 @@ export interface Project {
   title_en?: string;
   category: string;
   category_id?: number;
+  category_slug?: string;
   description: string;
   description_en?: string;
   imageUrls: string[];
@@ -39,6 +40,7 @@ export interface ContactInfo {
   working_hours: string;
   map_lat: number | null;
   map_lng: number | null;
+  map_embed_url?: string;
   updated_at: Date;
 }
 
@@ -55,6 +57,7 @@ export interface ContactSubmission {
 export interface Category {
   id: number;
   name: string;
+  name_en?: string;
   slug: string;
   description: string | null;
   display_order: number;
@@ -128,6 +131,7 @@ export async function getProjects(): Promise<Project[]> {
       p.title,
       p.title_en, 
       COALESCE(c.name, p.category, 'Kategorisiz') as category,
+      c.slug,
       p.category_id,
       p.description,
       p.description_en, 
@@ -138,12 +142,13 @@ export async function getProjects(): Promise<Project[]> {
           WHEN pi.image_url IS NOT NULL THEN pi.image_url
           ELSE NULL
         END 
-        ORDER BY pi.display_order SEPARATOR '|||'
+        ORDER BY pi.is_featured DESC, pi.display_order SEPARATOR '|||'
       ) as images
     FROM projects p
     LEFT JOIN categories c ON p.category_id = c.id
-    LEFT JOIN project_images pi ON p.id = pi.project_id
-    GROUP BY p.id, p.title, p.title_en, c.name, p.category, p.category_id, p.description, p.description_en, p.date
+    LEFT JOIN project_images pi ON p.id = pi.project_id 
+      AND (pi.image_data IS NOT NULL OR pi.image_url IS NOT NULL)
+    GROUP BY p.id, p.title, p.title_en, c.name, c.slug, p.category, p.category_id, p.description, p.description_en, p.date
     ORDER BY p.created_at DESC
   `) as any;
 
@@ -152,6 +157,7 @@ export async function getProjects(): Promise<Project[]> {
     title: row.title,
     title_en: row.title_en,
     category: row.category,
+    category_slug: row.slug,
     description: row.description,
     description_en: row.description_en,
     date: row.date,
@@ -167,6 +173,7 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
       p.title,
       p.title_en, 
       COALESCE(c.name, p.category, 'Kategorisiz') as category,
+      c.slug,
       p.category_id,
       p.description,
       p.description_en, 
@@ -177,13 +184,14 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
           WHEN pi.image_url IS NOT NULL THEN pi.image_url
           ELSE NULL
         END 
-        ORDER BY pi.display_order SEPARATOR '|||'
+        ORDER BY pi.is_featured DESC, pi.display_order SEPARATOR '|||'
       ) as images
     FROM projects p
     LEFT JOIN categories c ON p.category_id = c.id
-    LEFT JOIN project_images pi ON p.id = pi.project_id
+    LEFT JOIN project_images pi ON p.id = pi.project_id 
+      AND (pi.image_data IS NOT NULL OR pi.image_url IS NOT NULL)
     WHERE p.id = ?
-    GROUP BY p.id, p.title, p.title_en, c.name, p.category, p.category_id, p.description, p.description_en, p.date
+    GROUP BY p.id, p.title, p.title_en, c.name, c.slug, p.category, p.category_id, p.description, p.description_en, p.date
   `,
     [id]
   );
@@ -196,6 +204,7 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
     title: project.title,
     title_en: project.title_en,
     category: project.category,
+    category_slug: project.slug,
     category_id: project.category_id,
     description: project.description,
     description_en: project.description_en,
@@ -222,6 +231,7 @@ export async function addProject(project: Omit<Project, 'id'>): Promise<Project>
     if (project.imageUrls && project.imageUrls.length > 0) {
       for (let i = 0; i < project.imageUrls.length; i++) {
         const imageData = project.imageUrls[i];
+        const isFeatured = i === 0; // First image is featured (frontend already reordered)
 
         try {
           // Eğer data URL ise (base64), BLOB olarak kaydet
@@ -235,15 +245,15 @@ export async function addProject(project: Omit<Project, 'id'>): Promise<Project>
               console.log(`Uploading image ${i + 1}: ${mimeType}, size: ${buffer.length} bytes`);
 
               await connection.query(
-                'INSERT INTO project_images (project_id, image_data, mime_type, file_size, display_order) VALUES (?, ?, ?, ?, ?)',
-                [newId, buffer, mimeType, buffer.length, i]
+                'INSERT INTO project_images (project_id, image_data, mime_type, file_size, display_order, is_featured) VALUES (?, ?, ?, ?, ?, ?)',
+                [newId, buffer, mimeType, buffer.length, i, isFeatured]
               );
             }
           } else {
             // Normal URL ise, image_url olarak kaydet
             await connection.query(
-              'INSERT INTO project_images (project_id, image_url, display_order) VALUES (?, ?, ?)',
-              [newId, imageData, i]
+              'INSERT INTO project_images (project_id, image_url, display_order, is_featured) VALUES (?, ?, ?, ?)',
+              [newId, imageData, i, isFeatured]
             );
           }
         } catch (imgError) {
@@ -322,32 +332,66 @@ export async function updateProject(
       );
     }
 
-    // Eğer imageUrls güncellenmişse, eski resimleri sil ve yenilerini ekle
+    // Eğer imageUrls güncellenmişse, akıllı güncelleme yap (ID'leri koru)
     if (updates.imageUrls !== undefined) {
-      await connection.query('DELETE FROM project_images WHERE project_id = ?', [id]);
+      const keptIds: number[] = [];
+      const newOrders = new Map<number, number>();
+      const itemsToInsert: { data: string, order: number }[] = [];
 
-      if (updates.imageUrls.length > 0) {
-        for (let i = 0; i < updates.imageUrls.length; i++) {
-          const imageData = updates.imageUrls[i];
+      updates.imageUrls.forEach((img, idx) => {
+        if (img.startsWith('/api/images/')) {
+          const idStr = img.replace('/api/images/', '');
+          const imgId = parseInt(idStr);
+          if (!isNaN(imgId)) {
+            keptIds.push(imgId);
+            newOrders.set(imgId, idx);
+          }
+        } else {
+          itemsToInsert.push({ data: img, order: idx });
+        }
+      });
 
-          if (imageData.startsWith('data:')) {
-            const matches = imageData.match(/^data:(.+);base64,(.+)$/);
-            if (matches) {
-              const mimeType = matches[1];
-              const base64Data = matches[2];
-              const buffer = Buffer.from(base64Data, 'base64');
+      // 1. Silinen resimleri kaldır (keptIds listesinde olmayanları)
+      if (keptIds.length > 0) {
+        await connection.query(
+          `DELETE FROM project_images WHERE project_id = ? AND id NOT IN (${keptIds.join(',')})`,
+          [id]
+        );
+      } else {
+        // Hiçbir eski resim tutulmuyorsa, hepsini sil
+        await connection.query('DELETE FROM project_images WHERE project_id = ?', [id]);
+      }
 
-              await connection.query(
-                'INSERT INTO project_images (project_id, image_data, mime_type, file_size, display_order) VALUES (?, ?, ?, ?, ?)',
-                [id, buffer, mimeType, buffer.length, i]
-              );
-            }
-          } else {
+      // 2. Tutulan resimlerin sırasını güncelle
+      for (const [imgId, order] of newOrders.entries()) {
+        await connection.query(
+          'UPDATE project_images SET display_order = ? WHERE id = ?',
+          [order, imgId]
+        );
+      }
+
+      // 3. Yeni resimleri ekle (veya external URL'leri yeniden oluştur)
+      for (const item of itemsToInsert) {
+        const imageData = item.data;
+        const i = item.order;
+
+        if (imageData.startsWith('data:')) {
+          const matches = imageData.match(/^data:(.+);base64,(.+)$/);
+          if (matches) {
+            const mimeType = matches[1];
+            const base64Data = matches[2];
+            const buffer = Buffer.from(base64Data, 'base64');
+
             await connection.query(
-              'INSERT INTO project_images (project_id, image_url, display_order) VALUES (?, ?, ?)',
-              [id, imageData, i]
+              'INSERT INTO project_images (project_id, image_data, mime_type, file_size, display_order) VALUES (?, ?, ?, ?, ?)',
+              [id, buffer, mimeType, buffer.length, i]
             );
           }
+        } else {
+          await connection.query(
+            'INSERT INTO project_images (project_id, image_url, display_order) VALUES (?, ?, ?)',
+            [id, imageData, i]
+          );
         }
       }
     }
@@ -485,6 +529,10 @@ export async function updateContactInfo(data: Partial<ContactInfo>): Promise<voi
     fields.push('map_lng = ?');
     values.push(data.map_lng);
   }
+  if (data.map_embed_url !== undefined) {
+    fields.push('map_embed_url = ?');
+    values.push(data.map_embed_url);
+  }
 
   if (fields.length > 0) {
     await pool.query(
@@ -570,10 +618,10 @@ export async function getCategoryBySlug(slug: string): Promise<Category | undefi
   return categories.length > 0 ? categories[0] : undefined;
 }
 
-export async function addCategory(data: { name: string; slug: string; description?: string }): Promise<number> {
+export async function addCategory(data: { name: string; name_en?: string; slug: string; description?: string }): Promise<number> {
   const [result] = await pool.query(
-    'INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)',
-    [data.name, data.slug, data.description || null]
+    'INSERT INTO categories (name, name_en, slug, description) VALUES (?, ?, ?, ?)',
+    [data.name, data.name_en || null, data.slug, data.description || null]
   );
   return (result as any).insertId;
 }
@@ -585,6 +633,10 @@ export async function updateCategory(id: number, data: Partial<Category>): Promi
   if (data.name !== undefined) {
     fields.push('name = ?');
     values.push(data.name);
+  }
+  if (data.name_en !== undefined) {
+    fields.push('name_en = ?');
+    values.push(data.name_en);
   }
   if (data.slug !== undefined) {
     fields.push('slug = ?');
@@ -634,7 +686,8 @@ export async function getProjectsByCategory(categoryId: number): Promise<Project
         ORDER BY pi.display_order SEPARATOR '|||'
       ) as images
     FROM projects p
-    LEFT JOIN project_images pi ON p.id = pi.project_id
+    LEFT JOIN project_images pi ON p.id = pi.project_id 
+      AND (pi.image_data IS NOT NULL OR pi.image_url IS NOT NULL)
     WHERE p.category_id = ?
     GROUP BY p.id, p.title, p.category, p.category_id, p.description, p.date
     ORDER BY p.date DESC
@@ -820,3 +873,95 @@ export async function deleteService(id: number): Promise<boolean> {
   );
   return (result as any).affectedRows > 0;
 }
+
+// ============ FEATURED IMAGE FUNCTIONS ============
+
+export async function setFeaturedImage(projectId: string, imageUrl: string): Promise<boolean> {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // First, unset all featured images for this project
+    await connection.query(
+      'UPDATE project_images SET is_featured = FALSE WHERE project_id = ?',
+      [parseInt(projectId)]
+    );
+
+    // Then, set the specified image as featured
+    // Handle both BLOB images (/api/images/ID) and URL images
+    let result;
+
+    if (imageUrl.startsWith('/api/images/')) {
+      // Extract the image ID from /api/images/ID format
+      const imageId = imageUrl.replace('/api/images/', '');
+      result = await connection.query(
+        'UPDATE project_images SET is_featured = TRUE WHERE project_id = ? AND id = ?',
+        [parseInt(projectId), parseInt(imageId)]
+      );
+    } else {
+      // For external URLs, match by image_url field
+      result = await connection.query(
+        'UPDATE project_images SET is_featured = TRUE WHERE project_id = ? AND image_url = ?',
+        [parseInt(projectId), imageUrl]
+      );
+    }
+
+    await connection.commit();
+    const success = (result[0] as any).affectedRows > 0;
+    return success;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+// ============ SOCIAL MEDIA FUNCTIONS ============
+
+export interface SocialMediaAccount {
+  id: number;
+  platform: string;
+  url: string;
+  icon: string;
+  is_active: boolean;
+  display_order: number;
+  created_at: Date;
+}
+
+export async function getSocialMediaAccounts(onlyActive = false): Promise<SocialMediaAccount[]> {
+  const query = onlyActive
+    ? 'SELECT * FROM social_media_accounts WHERE is_active = TRUE ORDER BY display_order ASC'
+    : 'SELECT * FROM social_media_accounts ORDER BY display_order ASC';
+  const [rows] = await pool.query(query);
+  return rows as SocialMediaAccount[];
+}
+
+export async function addSocialMediaAccount(data: { platform: string; url: string; icon: string; display_order?: number; is_active?: boolean }): Promise<number> {
+  const [result] = await pool.query(
+    'INSERT INTO social_media_accounts (platform, url, icon, display_order, is_active) VALUES (?, ?, ?, ?, ?)',
+    [data.platform, data.url, data.icon, data.display_order || 0, data.is_active !== undefined ? data.is_active : true]
+  );
+  return (result as any).insertId;
+}
+
+export async function updateSocialMediaAccount(id: number, data: Partial<SocialMediaAccount>): Promise<void> {
+  const fields: string[] = [];
+  const values: any[] = [];
+  if (data.platform !== undefined) { fields.push('platform = ?'); values.push(data.platform); }
+  if (data.url !== undefined) { fields.push('url = ?'); values.push(data.url); }
+  if (data.icon !== undefined) { fields.push('icon = ?'); values.push(data.icon); }
+  if (data.is_active !== undefined) { fields.push('is_active = ?'); values.push(data.is_active); }
+  if (data.display_order !== undefined) { fields.push('display_order = ?'); values.push(data.display_order); }
+
+  if (fields.length > 0) {
+    values.push(id);
+    await pool.query(`UPDATE social_media_accounts SET ${fields.join(', ')} WHERE id = ?`, values);
+  }
+}
+
+export async function deleteSocialMediaAccount(id: number): Promise<void> {
+  await pool.query('DELETE FROM social_media_accounts WHERE id = ?', [id]);
+}
+

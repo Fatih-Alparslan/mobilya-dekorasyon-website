@@ -1,16 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, X, Phone, Instagram } from 'lucide-react';
+import { Menu, X, Phone } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Logo from './LogoClient';
 import LanguageSwitcher from './LanguageSwitcher';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useLanguage } from '@/components/LanguageProvider';
 
 export default function Header() {
     const [isOpen, setIsOpen] = useState(false);
     const [phoneNumber, setPhoneNumber] = useState('0555 555 55 55');
-    const { t } = useLanguage();
+    const { dict } = useLanguage();
 
     useEffect(() => {
         // İletişim bilgilerini fetch et
@@ -34,16 +34,16 @@ export default function Header() {
                 {/* Desktop Nav */}
                 <nav className="hidden md:flex gap-8 items-center font-medium">
                     <Link href="/" className="hover:text-yellow-500 transition-colors">
-                        {t.nav.home}
+                        {dict.header.home}
                     </Link>
                     <Link href="/projects" className="hover:text-yellow-500 transition-colors">
-                        {t.nav.projects}
+                        {dict.header.projects}
                     </Link>
                     <Link href="/about" className="hover:text-yellow-500 transition-colors">
-                        {t.nav.about}
+                        {dict.header.about}
                     </Link>
                     <Link href="/contact" className="hover:text-yellow-500 transition-colors">
-                        {t.nav.contact}
+                        {dict.header.contact}
                     </Link>
                 </nav>
 
@@ -69,10 +69,10 @@ export default function Header() {
             {isOpen && (
                 <div className="md:hidden bg-black border-t border-gray-800 p-4 absolute w-full h-screen">
                     <nav className="flex flex-col gap-6 text-lg font-medium text-center pt-8">
-                        <Link href="/" onClick={() => setIsOpen(false)}>{t.nav.home}</Link>
-                        <Link href="/projects" onClick={() => setIsOpen(false)}>{t.nav.projects}</Link>
-                        <Link href="/about" onClick={() => setIsOpen(false)}>{t.nav.about}</Link>
-                        <Link href="/contact" onClick={() => setIsOpen(false)}>{t.nav.contact}</Link>
+                        <Link href="/" onClick={() => setIsOpen(false)}>{dict.header.home}</Link>
+                        <Link href="/projects" onClick={() => setIsOpen(false)}>{dict.header.projects}</Link>
+                        <Link href="/about" onClick={() => setIsOpen(false)}>{dict.header.about}</Link>
+                        <Link href="/contact" onClick={() => setIsOpen(false)}>{dict.header.contact}</Link>
                         <a href={`tel:${phoneNumber.replace(/\s/g, '')}`} className="flex items-center justify-center gap-2 hover:text-yellow-500">
                             <Phone size={18} />
                             {phoneNumber}

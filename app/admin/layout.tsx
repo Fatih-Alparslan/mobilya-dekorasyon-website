@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { LayoutDashboard, FileText, ArrowLeft, LogOut, Settings, MessageSquare, Folder } from 'lucide-react';
+import { LayoutDashboard, FileText, ArrowLeft, LogOut, Settings, MessageSquare, Folder, Share2 } from 'lucide-react';
 
 export default function AdminLayout({
     children,
@@ -55,6 +55,13 @@ export default function AdminLayout({
                     >
                         <MessageSquare size={20} />
                         İletişim
+                    </Link>
+                    <Link
+                        href="/admin/social-media"
+                        className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+                    >
+                        <Share2 size={20} />
+                        Sosyal Medya
                     </Link>
                     <Link
                         href="/"

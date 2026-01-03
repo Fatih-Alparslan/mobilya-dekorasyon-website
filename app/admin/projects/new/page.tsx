@@ -3,11 +3,20 @@
 import { createProjectAction } from '../../actions';
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import { tr } from 'date-fns/locale';
+import { format } from 'date-fns';
+
+registerLocale('tr', tr);
 
 export default function NewProjectPage() {
     const [categories, setCategories] = useState<any[]>([]);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+
+    const [featuredImageIndex, setFeaturedImageIndex] = useState<number>(0);
+    const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
 
     useEffect(() => {
         fetch('/api/projects/categories')
@@ -37,6 +46,17 @@ export default function NewProjectPage() {
     const handleRemoveImage = (index: number) => {
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
         setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+        // If removing featured image, set first remaining as featured
+        if (index === featuredImageIndex) {
+            setFeaturedImageIndex(0);
+        } else if (index < featuredImageIndex) {
+            setFeaturedImageIndex(prev => prev - 1);
+        }
+    };
+
+    const handleSetFeatured = (index: number) => {
+        // Confirmation is done via Modal
+        setFeaturedImageIndex(index);
     };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -45,7 +65,16 @@ export default function NewProjectPage() {
 
         // Remove the original images input and add selected files
         formData.delete('images');
-        selectedFiles.forEach(file => {
+
+        // Reorder files so featured image is first
+        const reorderedFiles = [...selectedFiles];
+        if (featuredImageIndex > 0 && featuredImageIndex < reorderedFiles.length) {
+            const featuredFile = reorderedFiles[featuredImageIndex];
+            reorderedFiles.splice(featuredImageIndex, 1);
+            reorderedFiles.unshift(featuredFile);
+        }
+
+        reorderedFiles.forEach(file => {
             formData.append('images', file);
         });
 
@@ -84,11 +113,22 @@ export default function NewProjectPage() {
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tarih</label>
-                    <input
-                        name="date"
-                        type="date"
-                        className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 text-gray-900 dark:text-white shadow-sm focus:border-yellow-500 focus:outline-none focus:ring-1 focus:ring-yellow-500"
-                    />
+                    <div className="mt-1">
+                        <DatePicker
+                            selected={selectedDate}
+                            onChange={(date: Date | null) => setSelectedDate(date)}
+                            locale="tr"
+                            dateFormat="dd.MM.yyyy"
+                            wrapperClassName="w-full"
+                            className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 text-gray-900 dark:text-white shadow-sm focus:border-yellow-500 focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                            placeholderText="Tarih seçin"
+                        />
+                        <input
+                            type="hidden"
+                            name="date"
+                            value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+                        />
+                    </div>
                 </div>
 
                 <div>
@@ -111,8 +151,26 @@ export default function NewProjectPage() {
                                     <img
                                         src={url}
                                         alt={`Preview ${idx + 1}`}
-                                        className="w-full h-32 object-cover rounded border border-gray-300 dark:border-gray-600"
+                                        className={`w-full h-32 object-cover rounded border ${idx === featuredImageIndex
+                                            ? 'border-yellow-500 border-2'
+                                            : 'border-gray-300 dark:border-gray-600'
+                                            }`}
                                     />
+                                    {idx === featuredImageIndex && (
+                                        <div className="absolute top-2 left-2 bg-yellow-500 text-black px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                            ⭐ Ana Fotoğraf
+                                        </div>
+                                    )}
+                                    {idx !== featuredImageIndex && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSetFeatured(idx)}
+                                            className="absolute top-2 left-2 bg-gray-800/80 text-white px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity hover:bg-yellow-500 hover:text-black"
+                                            title="Ana Fotoğraf Yap"
+                                        >
+                                            ⭐ Ana Yap
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => handleRemoveImage(idx)}

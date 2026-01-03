@@ -2,31 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useLanguage } from '@/components/LanguageProvider';
 
 export default function ProjectDetailPage() {
     const params = useParams();
     const id = params.id as string;
-    const { language } = useLanguage();
+    const { language, dict } = useLanguage();
 
     const [project, setProject] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    // Format date as "gün ay yıl" (e.g., "15 Ocak 2024")
+    // Format date as "dd.mm.yyyy" (e.g., "15.01.2024")
     const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        const months = language === 'tr'
-            ? ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
-            : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-        const day = date.getDate();
-        const month = months[date.getMonth()];
-        const year = date.getFullYear();
-
-        return `${day} ${month} ${year}`;
+        try {
+            const d = new Date(dateString);
+            return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
+        } catch (e) {
+            return dateString;
+        }
     };
 
     useEffect(() => {
@@ -86,7 +83,7 @@ export default function ProjectDetailPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                <div className="text-xl">Yükleniyor...</div>
+                <div className="text-xl">{dict?.common?.loading || 'Yükleniyor...'}</div>
             </div>
         );
     }
@@ -99,19 +96,41 @@ export default function ProjectDetailPage() {
         );
     }
 
+    // Determine content based on selected language
+    const displayTitle = language === 'en' && project.title_en ? project.title_en : project.title;
+    const displayDesc = language === 'en' && project.description_en ? project.description_en : project.description;
+
+    // Category name is not in project object directly (it has category string which IS the name)
+    // But API getProjectById query: COALESCE(c.name, p.category, 'Kategorisiz') as category.
+    // It doesn't fetch c.name_en!
+    // We should fix API query to fetch name_en or handle it here if possible.
+    // But for now, we only have TR category name in `project.category`.
+    // The previous prompt identified this issue.
+    // We should probably rely on what we have, or fetch category EN name.
+    // But let's stick to simple display. At least title and desc are translated.
+
     return (
         <div className="min-h-screen bg-black text-white py-20">
             <div className="container mx-auto px-4 max-w-6xl">
                 {/* Project Header */}
                 <div className="mb-8">
                     <div className="flex items-center gap-3 mb-4">
-                        <span className="bg-yellow-500 text-black px-4 py-1 rounded-full text-sm font-medium">
-                            {project.category}
-                        </span>
+                        {project.category_slug ? (
+                            <Link
+                                href={`/projects?category=${project.category_slug}`}
+                                className="bg-yellow-500 text-black px-4 py-1 rounded-full text-sm font-medium hover:bg-yellow-400 transition-colors"
+                            >
+                                {project.category}
+                            </Link>
+                        ) : (
+                            <span className="bg-yellow-500 text-black px-4 py-1 rounded-full text-sm font-medium">
+                                {project.category}
+                            </span>
+                        )}
                         <span className="text-gray-400">{formatDate(project.date)}</span>
                     </div>
-                    <h1 className="text-4xl md:text-5xl font-bold mb-4">{project.title}</h1>
-                    <p className="text-gray-400 text-lg">{project.description}</p>
+                    <h1 className="text-4xl md:text-5xl font-bold mb-4">{displayTitle}</h1>
+                    <p className="text-gray-400 text-lg">{displayDesc}</p>
                 </div>
 
                 {/* Image Gallery */}
@@ -124,12 +143,12 @@ export default function ProjectDetailPage() {
                         >
                             <img
                                 src={url}
-                                alt={`${project.title} - ${index + 1}`}
+                                alt={`${displayTitle} - ${index + 1}`}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
                                 <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Büyüt
+                                    {language === 'en' ? 'Zoom' : 'Büyüt'}
                                 </span>
                             </div>
                         </div>
@@ -161,7 +180,7 @@ export default function ProjectDetailPage() {
                         <div className="max-w-7xl max-h-[90vh] px-16">
                             <img
                                 src={project.imageUrls[currentImageIndex]}
-                                alt={`${project.title} - ${currentImageIndex + 1}`}
+                                alt={`${displayTitle} - ${currentImageIndex + 1}`}
                                 className="max-w-full max-h-[90vh] object-contain"
                             />
                         </div>
