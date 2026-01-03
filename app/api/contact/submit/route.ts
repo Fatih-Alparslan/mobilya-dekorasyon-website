@@ -27,6 +27,8 @@ export async function POST(request: Request) {
         const { name, phone, email, message, recaptchaToken } = body;
 
         // Verify reCAPTCHA
+        // Verify reCAPTCHA - DEVRE DIŞI
+        /*
         if (!recaptchaToken) {
             return NextResponse.json({
                 success: false,
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
                 message: 'reCAPTCHA doğrulaması başarısız'
             }, { status: 400 });
         }
+        */
 
         // Validasyon
         if (!name || !phone || !email || !message) {

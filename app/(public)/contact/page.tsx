@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Mail, Phone, MapPin, Send, Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Globe, Share2, Sparkles } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Globe, Share2, Sparkles, CheckCircle, XCircle } from 'lucide-react';
 import { useLanguage } from '@/components/LanguageProvider';
 
 // WhatsApp SVG Component
@@ -16,6 +16,8 @@ export default function ContactPage() {
     const [info, setInfo] = useState<any>(null);
     const [socials, setSocials] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -48,10 +50,52 @@ export default function ContactPage() {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        alert(language === 'tr' ? 'Mesajınız alındı, teşekkürler.' : 'Message received, thank you.');
-        e.currentTarget.reset();
+        const form = e.currentTarget;
+        const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+        const originalText = submitBtn.innerHTML;
+
+        // Loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = language === 'tr' ? 'Gönderiliyor...' : 'Sending...';
+
+        try {
+            const formData = new FormData(form);
+            const firstname = formData.get('firstname');
+            const lastname = formData.get('lastname');
+
+            const payload = {
+                name: `${firstname} ${lastname}`.trim(),
+                email: formData.get('email'),
+                phone: formData.get('phone'),
+                message: formData.get('message')
+            };
+
+            const res = await fetch('/api/contact/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                form.reset();
+                setIsSubmitted(true);
+                setTimeout(() => setIsSubmitted(false), 5000);
+            } else {
+                setErrorMessage(data.message || (language === 'tr' ? 'Bir hata oluştu.' : 'An error occurred.'));
+                setTimeout(() => setErrorMessage(null), 5000);
+            }
+        } catch (error) {
+            console.error('Submit error:', error);
+            setErrorMessage(language === 'tr' ? 'Bir hata oluştu, lütfen tekrar deneyin.' : 'An error occurred, please try again.');
+            setTimeout(() => setErrorMessage(null), 5000);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
     };
 
     if (loading) {
@@ -183,16 +227,44 @@ export default function ContactPage() {
                     </div>
 
                     {/* Right Side: Form (approx 65% -> using 8/12 = 66%) */}
-                    <div className="lg:col-span-8 bg-gray-900/30 p-8 md:p-12 rounded-3xl border border-gray-800">
+                    <div className="lg:col-span-8 bg-gray-900/30 p-8 md:p-12 rounded-3xl border border-gray-800 relative overflow-hidden">
+                        {isSubmitted && (
+                            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-lg p-8 text-center transition-all duration-500 animate-in fade-in zoom-in-95">
+                                <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_-5px_rgba(34,197,94,0.3)]">
+                                    <CheckCircle size={40} className="text-green-500" />
+                                </div>
+                                <h3 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
+                                    {language === 'tr' ? 'Mesajınız Alındı!' : 'Message Received!'}
+                                </h3>
+                                <p className="text-gray-400 text-lg max-w-md leading-relaxed mb-8">
+                                    {language === 'tr'
+                                        ? 'Bizimle iletişime geçtiğiniz için teşekkürler. En kısa sürede size geri dönüş yapacağız.'
+                                        : 'Thank you for contacting us. We will get back to you as soon as possible.'}
+                                </p>
+                                <button
+                                    onClick={() => setIsSubmitted(false)}
+                                    className="px-8 py-3 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition-colors shadow-lg shadow-white/10"
+                                >
+                                    {language === 'tr' ? 'Tamam' : 'Okay'}
+                                </button>
+                            </div>
+                        )}
                         <div className="mb-10">
                             <h3 className="text-3xl md:text-4xl font-bold mb-4 text-white">
                                 {language === 'tr' ? 'Bize Mesaj Gönderin' : 'Send us a Message'}
                             </h3>
-                            <p className="text-gray-400 text-lg">
+                            <p className="text-gray-400 text-lg mb-6">
                                 {language === 'tr'
                                     ? 'Projeleriniz için detaylı bilgi almak, fiyat teklifi istemek veya sadece merhaba demek için formu doldurabilirsiniz.'
                                     : 'You can fill out the form to get detailed information about your projects, ask for a quote or just to say hello.'}
                             </p>
+
+                            {errorMessage && (
+                                <div className="flex items-center gap-3 bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-xl mb-6 animate-in slide-in-from-top-2">
+                                    <XCircle className="text-red-500 shrink-0" size={24} />
+                                    <p className="text-red-200 text-sm font-medium">{errorMessage}</p>
+                                </div>
+                            )}
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-6">
@@ -203,6 +275,7 @@ export default function ContactPage() {
                                     </label>
                                     <input
                                         type="text"
+                                        name="firstname"
                                         required
                                         className="w-full bg-black/50 border border-gray-700 rounded-xl px-5 py-4 text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-all placeholder:text-gray-600"
                                         placeholder={language === 'tr' ? 'Adınız' : 'John'}
@@ -214,6 +287,7 @@ export default function ContactPage() {
                                     </label>
                                     <input
                                         type="text"
+                                        name="lastname"
                                         required
                                         className="w-full bg-black/50 border border-gray-700 rounded-xl px-5 py-4 text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-all placeholder:text-gray-600"
                                         placeholder={language === 'tr' ? 'Soyadınız' : 'Doe'}
@@ -228,6 +302,7 @@ export default function ContactPage() {
                                     </label>
                                     <input
                                         type="email"
+                                        name="email"
                                         required
                                         className="w-full bg-black/50 border border-gray-700 rounded-xl px-5 py-4 text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-all placeholder:text-gray-600"
                                         placeholder="mail@example.com"
@@ -239,6 +314,7 @@ export default function ContactPage() {
                                     </label>
                                     <input
                                         type="tel"
+                                        name="phone"
                                         className="w-full bg-black/50 border border-gray-700 rounded-xl px-5 py-4 text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-all placeholder:text-gray-600"
                                         placeholder="0555 555 55 55"
                                     />
@@ -250,6 +326,7 @@ export default function ContactPage() {
                                     {language === 'tr' ? 'Mesajınız' : 'Your Message'}
                                 </label>
                                 <textarea
+                                    name="message"
                                     rows={8}
                                     required
                                     className="w-full bg-black/50 border border-gray-700 rounded-xl px-5 py-4 text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-all placeholder:text-gray-600 resize-none"
