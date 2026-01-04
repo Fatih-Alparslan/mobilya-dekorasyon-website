@@ -232,7 +232,7 @@ export default function Footer() {
             </div>
 
             <div className="border-t border-gray-900 pt-8 mt-8 text-center text-gray-500 text-sm">
-                <p>© 2024 212 Huzur Mobilya. {dict.footer.rights}</p>
+                <p>© {new Date().getFullYear()} 212 Huzur Mobilya. {dict.footer.rights}</p>
             </div>
         </footer>
     );

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Menu, X, Phone } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Logo from './LogoClient';
-import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '@/components/LanguageProvider';
 
 export default function Header() {
@@ -53,7 +52,6 @@ export default function Header() {
                         <Phone size={18} />
                         {phoneNumber}
                     </a>
-                    <LanguageSwitcher />
                 </div>
 
                 {/* Mobile Menu Toggle */}
@@ -77,9 +75,7 @@ export default function Header() {
                             <Phone size={18} />
                             {phoneNumber}
                         </a>
-                        <div className="flex justify-center mt-4">
-                            <LanguageSwitcher />
-                        </div>
+
                     </nav>
                 </div>
             )}

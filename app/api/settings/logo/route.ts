@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getAdminSession } from '@/lib/auth';
-import { getLogoSettings, updateLogo, updateLogoText, deleteLogo } from '@/lib/db';
+import { getLogoSettings, updateLogo, updateLogoText, deleteLogo, updateFavicon } from '@/lib/db';
 
 // GET - Mevcut logo ayarlarını getir
 export async function GET() {
@@ -23,6 +23,7 @@ export async function GET() {
                 hasLogoImage: !!settings.logo_data,
                 logoMimeType: settings.logo_mime_type,
                 logoFileSize: settings.logo_file_size,
+                selectedFavicon: settings.selected_favicon || 'default',
                 updatedAt: settings.updated_at,
             }
         });
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { logoData, logoText } = body;
+        const { logoData, logoText, favicon } = body;
 
         // Logo resmi varsa güncelle
         if (logoData) {
@@ -60,9 +61,14 @@ export async function POST(request: Request) {
             await updateLogoText(logoText);
         }
 
+        // Favicon varsa güncelle
+        if (favicon) {
+            await updateFavicon(favicon);
+        }
+
         return NextResponse.json({
             success: true,
-            message: 'Logo başarıyla güncellendi'
+            message: 'Ayarlar başarıyla güncellendi'
         });
     } catch (error) {
         console.error('Update logo error:', error);

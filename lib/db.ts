@@ -33,9 +33,13 @@ export interface SiteSettings {
   logo_data: Buffer | null;
   logo_mime_type: string | null;
   logo_file_size: number | null;
+  selected_favicon: string;
   created_at: Date;
   updated_at: Date;
 }
+
+// ... (keep intermediate content)
+
 
 export interface ContactInfo {
   id: number;
@@ -481,6 +485,15 @@ export async function deleteLogo(): Promise<void> {
     `UPDATE site_settings 
      SET logo_data = NULL, logo_mime_type = NULL, logo_file_size = NULL 
      WHERE id = 1`
+  );
+}
+
+export async function updateFavicon(favicon: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO site_settings (id, selected_favicon) 
+       VALUES (1, ?)
+       ON DUPLICATE KEY UPDATE selected_favicon = VALUES(selected_favicon)`,
+    [favicon]
   );
 }
 

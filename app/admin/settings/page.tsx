@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, X, Image as ImageIcon, Type } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Type, LayoutGrid } from 'lucide-react';
 
 interface LogoSettings {
     id: number;
@@ -9,12 +9,22 @@ interface LogoSettings {
     hasLogoImage: boolean;
     logoMimeType: string | null;
     logoFileSize: number | null;
+    selectedFavicon: string;
     updatedAt: string;
 }
+
+const FAVICONS = [
+    { id: 'default', name: 'Varsayılan', path: '/favicon.ico' },
+    { id: 'sofa', name: 'Koltuk', path: '/favicons/sofa.svg' },
+    { id: 'chair', name: 'Sandalye', path: '/favicons/chair.svg' },
+    { id: 'bed', name: 'Yatak', path: '/favicons/bed.svg' },
+    { id: 'home', name: 'Ev', path: '/favicons/home.svg' },
+];
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<LogoSettings | null>(null);
     const [logoText, setLogoText] = useState('');
+    const [selectedFavicon, setSelectedFavicon] = useState('default');
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
@@ -33,6 +43,9 @@ export default function SettingsPage() {
             if (data.success) {
                 setSettings(data.data);
                 setLogoText(data.data.logoText);
+                if (data.data.selectedFavicon) {
+                    setSelectedFavicon(data.data.selectedFavicon);
+                }
 
                 // Eğer logo varsa, önizleme URL'ini ayarla
                 if (data.data.hasLogoImage) {
@@ -71,8 +84,8 @@ export default function SettingsPage() {
     };
 
     const handleUploadLogo = async () => {
-        if (!selectedFile && !logoText) {
-            setMessage({ type: 'error', text: 'Lütfen bir logo yükleyin veya logo metni girin' });
+        if (!selectedFile && !logoText && !selectedFavicon) {
+            setMessage({ type: 'error', text: 'Lütfen bir değişiklik yapın' });
             return;
         }
 
@@ -95,15 +108,17 @@ export default function SettingsPage() {
             const res = await fetch('/api/settings/logo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ logoData, logoText }),
+                body: JSON.stringify({ logoData, logoText, favicon: selectedFavicon }),
             });
 
             const data = await res.json();
 
             if (data.success) {
-                setMessage({ type: 'success', text: 'Logo başarıyla güncellendi!' });
+                setMessage({ type: 'success', text: 'Ayarlar başarıyla güncellendi!' });
                 setSelectedFile(null);
                 await fetchSettings();
+                // Refresh to update header
+                window.location.reload();
             } else {
                 setMessage({ type: 'error', text: data.message || 'Bir hata oluştu' });
             }
@@ -192,6 +207,36 @@ export default function SettingsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Favicon Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <LayoutGrid size={24} />
+                    Favicon Seçimi
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    {FAVICONS.map((icon) => (
+                        <div
+                            key={icon.id}
+                            onClick={() => setSelectedFavicon(icon.id)}
+                            className={`
+                                cursor-pointer rounded-xl p-4 border-2 flex flex-col items-center gap-2 transition-all
+                                ${selectedFavicon === icon.id
+                                    ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
+                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}
+                            `}
+                        >
+                            <div className="w-12 h-12 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg mb-2">
+                                <img src={icon.path} alt={icon.name} className="w-8 h-8 object-contain" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{icon.name}</span>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-xs text-gray-500 dark:text-gray-400">
+                    Seçtiğiniz ikon tarayıcı sekmesinde görünen site ikonu (favicon) olarak ayarlanacaktır.
+                </div>
+            </div>
 
             {/* Logo Section */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
@@ -289,6 +334,7 @@ export default function SettingsPage() {
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <h4 className="font-bold text-blue-900 dark:text-blue-200 mb-2">Bilgi</h4>
                 <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
+                    <li>• Seçilen Favicon, tarayıcı sekmesinde görünür.</li>
                     <li>• Logo resmi yüklerseniz, site başlığında bu resim gösterilir</li>
                     <li>• Logo resmi yoksa, logo metni gösterilir</li>
                     <li>• Değişiklikler anında tüm sayfalarda görünür</li>
