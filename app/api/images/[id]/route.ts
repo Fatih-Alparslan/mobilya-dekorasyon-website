@@ -1,5 +1,6 @@
 import { getImageById } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { URLSearchParams } from 'url';
 
 export async function GET(
     request: Request,
@@ -19,7 +20,7 @@ export async function GET(
             return new NextResponse('Image not found', { status: 404 });
         }
 
-        return new NextResponse(image.data, {
+        return new NextResponse(image.data as any, {
             headers: {
                 'Content-Type': image.mimeType,
                 'Cache-Control': 'public, max-age=31536000, immutable',

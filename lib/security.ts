@@ -147,7 +147,7 @@ export function isIpWhitelisted(ip: string, whitelist?: string[]): boolean {
  * Generate a time-based one-time password (TOTP) secret
  */
 export function generateTOTPSecret(): string {
-    return crypto.randomBytes(20).toString('base32');
+    return crypto.randomBytes(20).toString("base64");
 }
 
 /**
