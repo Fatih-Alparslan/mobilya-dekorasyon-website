@@ -19,7 +19,12 @@ export interface User {
   username: string;
   password_hash: string;
   email: string | null;
+  role?: 'super_admin' | 'admin' | 'editor';
+  is_active?: boolean;
+  last_login?: Date | null;
+  created_by?: number | null;
   created_at: Date;
+  updated_at?: Date;
 }
 
 export interface SiteSettings {
@@ -965,3 +970,449 @@ export async function deleteSocialMediaAccount(id: number): Promise<void> {
   await pool.query('DELETE FROM social_media_accounts WHERE id = ?', [id]);
 }
 
+// ============ SECURITY & AUDIT LOG FUNCTIONS ============
+
+export interface AuditLogEntry {
+  id: number;
+  user_id: number | null;
+  username: string;
+  action: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  details: string | null;
+  success: boolean;
+  created_at: Date;
+}
+
+export interface AdminSession {
+  id: number;
+  user_id: number;
+  session_token_hash: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  expires_at: Date;
+  created_at: Date;
+  last_activity: Date;
+}
+
+export interface AdminSettings {
+  id: number;
+  session_timeout_hours: number;
+  max_login_attempts: number;
+  lockout_duration_minutes: number;
+  require_https: boolean;
+  ip_whitelist: string | null;
+  two_factor_enabled: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Log an admin action to the audit log
+ */
+export async function logAuditEntry(data: {
+  user_id?: number;
+  username: string;
+  action: string;
+  ip_address?: string;
+  user_agent?: string;
+  details?: string;
+  success?: boolean;
+}): Promise<number> {
+  const [result] = await pool.query(
+    `INSERT INTO admin_audit_log 
+     (user_id, username, action, ip_address, user_agent, details, success) 
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      data.user_id || null,
+      data.username,
+      data.action,
+      data.ip_address || null,
+      data.user_agent || null,
+      data.details || null,
+      data.success !== undefined ? data.success : true,
+    ]
+  );
+  return (result as any).insertId;
+}
+
+/**
+ * Get audit log entries with optional filtering
+ */
+export async function getAuditLog(options?: {
+  limit?: number;
+  offset?: number;
+  userId?: number;
+  action?: string;
+  startDate?: Date;
+  endDate?: Date;
+}): Promise<AuditLogEntry[]> {
+  let query = 'SELECT * FROM admin_audit_log WHERE 1=1';
+  const params: any[] = [];
+
+  if (options?.userId) {
+    query += ' AND user_id = ?';
+    params.push(options.userId);
+  }
+
+  if (options?.action) {
+    query += ' AND action = ?';
+    params.push(options.action);
+  }
+
+  if (options?.startDate) {
+    query += ' AND created_at >= ?';
+    params.push(options.startDate);
+  }
+
+  if (options?.endDate) {
+    query += ' AND created_at <= ?';
+    params.push(options.endDate);
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  if (options?.limit) {
+    query += ' LIMIT ?';
+    params.push(options.limit);
+    if (options?.offset) {
+      query += ' OFFSET ?';
+      params.push(options.offset);
+    }
+  }
+
+  const [rows] = await pool.query(query, params);
+  return rows as AuditLogEntry[];
+}
+
+/**
+ * Create a new admin session
+ */
+export async function createAdminSession(data: {
+  user_id: number;
+  session_token_hash: string;
+  ip_address?: string;
+  user_agent?: string;
+  expires_at: Date;
+}): Promise<number> {
+  const [result] = await pool.query(
+    `INSERT INTO admin_sessions 
+     (user_id, session_token_hash, ip_address, user_agent, expires_at) 
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      data.user_id,
+      data.session_token_hash,
+      data.ip_address || null,
+      data.user_agent || null,
+      data.expires_at,
+    ]
+  );
+  return (result as any).insertId;
+}
+
+/**
+ * Get session by token hash
+ */
+export async function getSessionByToken(tokenHash: string): Promise<AdminSession | null> {
+  const [rows] = await pool.query(
+    'SELECT * FROM admin_sessions WHERE session_token_hash = ? AND expires_at > NOW()',
+    [tokenHash]
+  );
+  const sessions = rows as AdminSession[];
+  return sessions.length > 0 ? sessions[0] : null;
+}
+
+/**
+ * Update session last activity
+ */
+export async function updateSessionActivity(sessionId: number): Promise<void> {
+  await pool.query(
+    'UPDATE admin_sessions SET last_activity = NOW() WHERE id = ?',
+    [sessionId]
+  );
+}
+
+/**
+ * Delete a session (logout)
+ */
+export async function deleteSession(tokenHash: string): Promise<boolean> {
+  const [result] = await pool.query(
+    'DELETE FROM admin_sessions WHERE session_token_hash = ?',
+    [tokenHash]
+  );
+  return (result as any).affectedRows > 0;
+}
+
+/**
+ * Delete all sessions for a user
+ */
+export async function deleteAllUserSessions(userId: number): Promise<number> {
+  const [result] = await pool.query(
+    'DELETE FROM admin_sessions WHERE user_id = ?',
+    [userId]
+  );
+  return (result as any).affectedRows;
+}
+
+/**
+ * Clean up expired sessions
+ */
+export async function cleanupExpiredSessions(): Promise<number> {
+  const [result] = await pool.query(
+    'DELETE FROM admin_sessions WHERE expires_at < NOW()'
+  );
+  return (result as any).affectedRows;
+}
+
+/**
+ * Get admin security settings
+ */
+export async function getAdminSettings(): Promise<AdminSettings | null> {
+  const [rows] = await pool.query('SELECT * FROM admin_settings WHERE id = 1');
+  const settings = rows as AdminSettings[];
+  return settings.length > 0 ? settings[0] : null;
+}
+
+/**
+ * Update admin security settings
+ */
+export async function updateAdminSettings(data: Partial<AdminSettings>): Promise<void> {
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (data.session_timeout_hours !== undefined) {
+    fields.push('session_timeout_hours = ?');
+    values.push(data.session_timeout_hours);
+  }
+  if (data.max_login_attempts !== undefined) {
+    fields.push('max_login_attempts = ?');
+    values.push(data.max_login_attempts);
+  }
+  if (data.lockout_duration_minutes !== undefined) {
+    fields.push('lockout_duration_minutes = ?');
+    values.push(data.lockout_duration_minutes);
+  }
+  if (data.require_https !== undefined) {
+    fields.push('require_https = ?');
+    values.push(data.require_https);
+  }
+  if (data.ip_whitelist !== undefined) {
+    fields.push('ip_whitelist = ?');
+    values.push(data.ip_whitelist);
+  }
+  if (data.two_factor_enabled !== undefined) {
+    fields.push('two_factor_enabled = ?');
+    values.push(data.two_factor_enabled);
+  }
+
+  if (fields.length > 0) {
+    await pool.query(
+      `UPDATE admin_settings SET ${fields.join(', ')} WHERE id = 1`,
+      values
+    );
+  }
+}
+
+// ============ USER MANAGEMENT FUNCTIONS ============
+
+export interface PasswordResetToken {
+  id: number;
+  user_id: number;
+  token: string;
+  expires_at: Date;
+  used: boolean;
+  created_at: Date;
+}
+
+/**
+ * Get all users
+ */
+/**
+ * Get all users
+ */
+export async function getAllUsers(): Promise<User[]> {
+  const [rows] = await pool.query(
+    'SELECT id, username, email, role, is_active, last_login, created_at, updated_at FROM users ORDER BY created_at DESC'
+  );
+  return rows as User[];
+}
+
+/**
+ * Get user by ID
+ */
+export async function getUserById(id: number): Promise<User | null> {
+  const [rows] = await pool.query(
+    'SELECT id, username, email, role, is_active, last_login, created_at, updated_at FROM users WHERE id = ?',
+    [id]
+  );
+  const users = rows as User[];
+  return users.length > 0 ? users[0] : null;
+}
+
+/**
+ * Get user by email
+ */
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const [rows] = await pool.query(
+    'SELECT * FROM users WHERE email = ?',
+    [email]
+  );
+  const users = rows as User[];
+  return users.length > 0 ? users[0] : null;
+}
+
+/**
+ * Create a new user
+ */
+export async function createUser(userData: {
+  username: string;
+  email: string;
+  password?: string;
+  role?: 'super_admin' | 'admin' | 'editor';
+}): Promise<number> {
+  const connection = await pool.getConnection();
+
+  try {
+    // Hash password if provided
+    let passwordHash = '';
+    if (userData.password) {
+      // Assuming bcrypt is imported or available in scope
+      const bcrypt = require('bcrypt');
+      passwordHash = await bcrypt.hash(userData.password, 10);
+    }
+
+    const [result] = await connection.query(
+      'INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)',
+      [userData.username, userData.email, passwordHash, userData.role || 'editor']
+    );
+
+    return (result as any).insertId;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Update user
+ */
+export async function updateUser(
+  id: number,
+  data: { username?: string; email?: string; is_active?: boolean; role?: string }
+): Promise<boolean> {
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (data.username !== undefined) {
+    fields.push('username = ?');
+    values.push(data.username);
+  }
+  if (data.email !== undefined) {
+    fields.push('email = ?');
+    values.push(data.email);
+  }
+  if (data.is_active !== undefined) {
+    fields.push('is_active = ?');
+    values.push(data.is_active);
+  }
+  if (data.role !== undefined) {
+    fields.push('role = ?');
+    values.push(data.role);
+  }
+
+  if (fields.length === 0) return false;
+
+  values.push(id);
+
+  const [result] = await pool.query(
+    `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    values
+  );
+
+  return (result as any).affectedRows > 0;
+}
+
+/**
+ * Update user password
+ */
+export async function updateUserPassword(userId: number, newPassword: string): Promise<boolean> {
+  const passwordHash = await hashPassword(newPassword);
+
+  const [result] = await pool.query(
+    'UPDATE users SET password_hash = ? WHERE id = ?',
+    [passwordHash, userId]
+  );
+
+  return (result as any).affectedRows > 0;
+}
+
+/**
+ * Delete user
+ */
+export async function deleteUser(id: number): Promise<boolean> {
+  const [result] = await pool.query(
+    'DELETE FROM users WHERE id = ?',
+    [id]
+  );
+
+  return (result as any).affectedRows > 0;
+}
+
+/**
+ * Update last login time
+ */
+export async function updateLastLogin(userId: number): Promise<void> {
+  await pool.query(
+    'UPDATE users SET last_login = NOW() WHERE id = ?',
+    [userId]
+  );
+}
+
+/**
+ * Create password reset token
+ */
+export async function createPasswordResetToken(userId: number): Promise<string> {
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await pool.query(
+    'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+    [userId, token, expiresAt]
+  );
+
+  return token;
+}
+
+/**
+ * Get password reset token
+ */
+export async function getPasswordResetToken(token: string): Promise<PasswordResetToken | null> {
+  const [rows] = await pool.query(
+    'SELECT * FROM password_reset_tokens WHERE token = ? AND used = FALSE AND expires_at > NOW()',
+    [token]
+  );
+
+  const tokens = rows as PasswordResetToken[];
+  return tokens.length > 0 ? tokens[0] : null;
+}
+
+/**
+ * Mark password reset token as used
+ */
+export async function markTokenAsUsed(token: string): Promise<void> {
+  await pool.query(
+    'UPDATE password_reset_tokens SET used = TRUE WHERE token = ?',
+    [token]
+  );
+}
+
+/**
+ * Delete expired password reset tokens
+ */
+export async function cleanupExpiredTokens(): Promise<number> {
+  const [result] = await pool.query(
+    'DELETE FROM password_reset_tokens WHERE expires_at < NOW() OR used = TRUE'
+  );
+
+  return (result as any).affectedRows;
+}

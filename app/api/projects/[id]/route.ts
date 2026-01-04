@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getProjectById, updateProject, setFeaturedImage } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { saveFile } from '@/lib/upload';
+import { getAdminSession } from '@/lib/auth';
 
 export async function GET(
     request: Request,
@@ -37,10 +38,8 @@ export async function PATCH(
 ) {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'
@@ -86,10 +85,8 @@ export async function PUT(
 ) {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'

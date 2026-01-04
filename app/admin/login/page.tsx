@@ -2,30 +2,46 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setLoading(true);
 
-        const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password }),
-        });
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            });
 
-        const data = await res.json();
+            const data = await res.json();
 
-        if (data.success) {
-            router.push('/admin');
-            router.refresh();
-        } else {
-            setError(data.message || 'Giriş başarısız!');
+            if (data.success) {
+                router.push('/admin');
+                router.refresh();
+            } else {
+                // Show specific error messages
+                if (res.status === 429) {
+                    setError(data.message || 'Çok fazla deneme. Lütfen daha sonra tekrar deneyin.');
+                } else if (data.remaining !== undefined) {
+                    setError(`${data.message} (Kalan deneme: ${data.remaining})`);
+                } else {
+                    setError(data.message || 'Giriş başarısız!');
+                }
+            }
+        } catch (err) {
+            setError('Bağlantı hatası. Lütfen tekrar deneyin.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -46,7 +62,8 @@ export default function LoginPage() {
                             name="username"
                             type="text"
                             required
-                            className="relative block w-full rounded-md border-0 bg-gray-800 py-3 px-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-yellow-500 mb-4"
+                            disabled={loading}
+                            className="relative block w-full rounded-md border-0 bg-gray-800 py-3 px-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-yellow-500 mb-4 disabled:opacity-50"
                             placeholder="Kullanıcı Adı"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
@@ -62,7 +79,8 @@ export default function LoginPage() {
                             name="password"
                             type="password"
                             required
-                            className="relative block w-full rounded-md border-0 bg-gray-800 py-3 px-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-yellow-500"
+                            disabled={loading}
+                            className="relative block w-full rounded-md border-0 bg-gray-800 py-3 px-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-yellow-500 disabled:opacity-50"
                             placeholder="Şifre"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -74,14 +92,20 @@ export default function LoginPage() {
                     <div>
                         <button
                             type="submit"
-                            className="group relative flex w-full justify-center rounded-md bg-yellow-500 py-3 px-4 text-sm font-bold text-black hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                            disabled={loading}
+                            className="group relative flex w-full justify-center rounded-md bg-yellow-500 py-3 px-4 text-sm font-bold text-black hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Giriş Yap
+                            {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
                         </button>
                     </div>
 
-                    <div className="text-center text-sm text-gray-500 mt-4">
-                        <p>Varsayılan: admin / admin123</p>
+                    <div className="text-center">
+                        <Link
+                            href="/admin/forgot-password"
+                            className="text-sm text-gray-400 hover:text-yellow-500 transition-colors"
+                        >
+                            Şifremi unuttum
+                        </Link>
                     </div>
                 </form>
             </div>

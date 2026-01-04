@@ -8,6 +8,7 @@ interface ConfirmModalProps {
     message: string;
     confirmText?: string;
     cancelText?: string;
+    isLoading?: boolean;
 }
 
 export default function ConfirmModal({
@@ -17,7 +18,8 @@ export default function ConfirmModal({
     title,
     message,
     confirmText = 'Evet',
-    cancelText = 'Hayır'
+    cancelText = 'Hayır',
+    isLoading = false
 }: ConfirmModalProps) {
     if (!isOpen) return null;
 
@@ -37,15 +39,17 @@ export default function ConfirmModal({
                 <div className="flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-medium text-sm"
+                        disabled={isLoading}
+                        className="px-5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {cancelText}
                     </button>
                     <button
                         onClick={() => { onConfirm(); onClose(); }}
-                        className="px-5 py-2.5 rounded-lg bg-yellow-500 text-black hover:bg-yellow-400 transition-colors font-bold text-sm shadow-sm"
+                        disabled={isLoading}
+                        className="px-5 py-2.5 rounded-lg bg-yellow-500 text-black hover:bg-yellow-400 transition-colors font-bold text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {confirmText}
+                        {isLoading ? 'İşleniyor...' : confirmText}
                     </button>
                 </div>
             </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { getAdminSession } from '@/lib/auth';
 import { getLogoSettings, updateLogo, updateLogoText, deleteLogo } from '@/lib/db';
 
 // GET - Mevcut logo ayarlarını getir
@@ -38,10 +39,8 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'
@@ -78,10 +77,8 @@ export async function POST(request: Request) {
 export async function DELETE() {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'

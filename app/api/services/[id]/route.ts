@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServiceById, updateService, deleteService } from '@/lib/db';
 import { cookies } from 'next/headers';
+import { getAdminSession } from '@/lib/auth';
 
 // GET - Hizmet detayı
 export async function GET(
@@ -38,10 +39,8 @@ export async function PUT(
 ) {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'
@@ -87,10 +86,8 @@ export async function DELETE(
 ) {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'

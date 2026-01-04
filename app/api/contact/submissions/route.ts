@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { getAdminSession } from '@/lib/auth';
+
 import { getContactSubmissions, markSubmissionAsRead, deleteSubmission, getUnreadSubmissionsCount } from '@/lib/db';
 
 // GET - Tüm mesajları listele (admin only)
 export async function GET() {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'
@@ -37,10 +37,8 @@ export async function GET() {
 export async function PATCH(request: Request) {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'
@@ -76,10 +74,8 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
     try {
         // Admin session kontrolü
-        const cookieStore = await cookies();
-        const session = cookieStore.get('admin_session');
-
-        if (!session || session.value !== 'authenticated') {
+        const sessionData = await getAdminSession();
+        if (!sessionData) {
             return NextResponse.json({
                 success: false,
                 message: 'Yetkisiz erişim'
